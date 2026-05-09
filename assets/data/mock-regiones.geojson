@@ -1,0 +1,39 @@
+{
+  "type": "FeatureCollection",
+  "name": "mock_regiones_chile_centro_sur",
+  "metadata": {
+    "warning": "Límites administrativos simulados para prototipo. No usar como dato oficial."
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "properties": { "name": "Región de O'Higgins", "type": "región mock" },
+      "geometry": { "type": "Polygon", "coordinates": [[[-72.2,-34.05],[-70.55,-34.15],[-70.45,-35.02],[-71.25,-35.18],[-72.05,-35.05],[-72.42,-34.55],[-72.2,-34.05]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Región del Maule", "type": "región mock" },
+      "geometry": { "type": "Polygon", "coordinates": [[[-72.42,-35.05],[-71.25,-35.18],[-70.45,-35.02],[-70.55,-36.05],[-71.35,-36.25],[-72.15,-36.45],[-72.75,-35.92],[-72.42,-35.05]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Región de Ñuble", "type": "región mock" },
+      "geometry": { "type": "Polygon", "coordinates": [[[-72.75,-35.92],[-72.15,-36.45],[-71.35,-36.25],[-70.85,-36.75],[-71.25,-37.18],[-72.15,-37.05],[-72.85,-36.75],[-72.75,-35.92]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Región del Biobío", "type": "región mock" },
+      "geometry": { "type": "Polygon", "coordinates": [[[-72.85,-36.75],[-72.15,-37.05],[-71.25,-37.18],[-71.18,-38.25],[-72.05,-38.55],[-73.15,-38.1],[-73.35,-37.25],[-72.85,-36.75]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Región de La Araucanía", "type": "región mock" },
+      "geometry": { "type": "Polygon", "coordinates": [[[-73.15,-38.1],[-72.05,-38.55],[-71.18,-38.25],[-71.28,-39.45],[-72.35,-39.75],[-73.25,-39.35],[-73.45,-38.6],[-73.15,-38.1]]] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Región de Los Ríos", "type": "región mock" },
+      "geometry": { "type": "Polygon", "coordinates": [[[-73.25,-39.35],[-72.35,-39.75],[-71.28,-39.45],[-71.55,-40.65],[-72.45,-40.9],[-73.35,-40.35],[-73.25,-39.35]]] }
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "type": "FeatureCollection",
+  "name": "mock_comunas_chile_centro_sur",
+  "metadata": {
+    "warning": "Comunas simuladas para prototipo visual. No corresponden a límites oficiales."
+  },
+  "features": [
+    { "type": "Feature", "properties": { "name": "Rancagua mock" }, "geometry": { "type": "Polygon", "coordinates": [[[-71.45,-34.25],[-70.7,-34.25],[-70.65,-34.7],[-71.25,-34.82],[-71.62,-34.55],[-71.45,-34.25]]] } },
+    { "type": "Feature", "properties": { "name": "San Fernando mock" }, "geometry": { "type": "Polygon", "coordinates": [[[-72.0,-34.45],[-71.45,-34.25],[-71.62,-34.55],[-71.25,-34.82],[-71.65,-35.02],[-72.25,-34.85],[-72.0,-34.45]]] } },
+    { "type": "Feature", "properties": { "name": "Talca mock" }, "geometry": { "type": "Polygon", "coordinates": [[[-72.35,-35.15],[-71.55,-35.22],[-71.5,-35.7],[-72.05,-35.95],[-72.62,-35.65],[-72.35,-35.15]]] } },
+    { "type": "Feature", "properties": { "name": "Curicó mock" }, "geometry": { "type": "Polygon", "coordinates": [[[-71.55,-35.22],[-70.7,-35.1],[-70.65,-35.75],[-71.5,-35.7],[-71.55,-35.22]]] } },
+    { "type": "Feature", "properties": { "name": "Linares mock" }, "geometry": { "type": "Polygon", "coordinates": [[[-72.05,-35.95],[-71.5,-35.7],[-70.72,-35.85],[-70.82,-36.25],[-71.55,-36.22],[-72.15,-36.42],[-72.05,-35.95]]] } },
+    { "type": "Feature", "properties": { "name": "Chillán mock" }, "geometry": { "type": "Polygon", "coordinates": [[[-72.45,-36.05],[-72.15,-36.42],[-71.55,-36.22],[-70.9,-36.55],[-71.2,-36.95],[-72.05,-36.9],[-72.65,-36.55],[-72.45,-36.05]]] } },
+    { "type": "Feature", "properties": { "name": "Concepción mock" }, "geometry": { "type": "Polygon", "coordinates": [[[-73.25,-36.78],[-72.55,-36.9],[-72.15,-37.3],[-72.45,-37.85],[-73.15,-37.72],[-73.42,-37.25],[-73.25,-36.78]]] } },
+    { "type": "Feature", "properties": { "name": "Los Ángeles mock" }, "geometry": { "type": "Polygon", "coordinates": [[[-72.15,-37.3],[-71.25,-37.25],[-71.18,-38.02],[-72.05,-38.45],[-72.45,-37.85],[-72.15,-37.3]]] } },
+    { "type": "Feature", "properties": { "name": "Angol mock" }, "geometry": { "type": "Polygon", "coordinates": [[[-73.05,-38.05],[-72.05,-38.45],[-71.5,-38.25],[-71.32,-38.85],[-72.2,-39.05],[-73.25,-38.75],[-73.05,-38.05]]] } },
+    { "type": "Feature", "properties": { "name": "Temuco mock" }, "geometry": { "type": "Polygon", "coordinates": [[[-73.25,-38.75],[-72.2,-39.05],[-71.32,-38.85],[-71.35,-39.45],[-72.25,-39.66],[-73.25,-39.25],[-73.25,-38.75]]] } },
+    { "type": "Feature", "properties": { "name": "Villarrica mock" }, "geometry": { "type": "Polygon", "coordinates": [[[-72.25,-39.66],[-71.35,-39.45],[-71.46,-40.05],[-72.35,-40.28],[-72.8,-39.86],[-72.25,-39.66]]] } },
+    { "type": "Feature", "properties": { "name": "Valdivia mock" }, "geometry": { "type": "Polygon", "coordinates": [[[-73.2,-39.55],[-72.8,-39.86],[-72.35,-40.28],[-71.46,-40.05],[-71.62,-40.62],[-72.45,-40.85],[-73.35,-40.32],[-73.2,-39.55]]] } }
+  ]
+}

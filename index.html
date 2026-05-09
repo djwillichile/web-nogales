@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Visor Agroclimático Nogal | Chile centro-sur</title>
+    <meta
+      name="description"
+      content="Visualizador web interactivo de capas climáticas y agroclimáticas para nogal en Chile centro-sur."
+    />
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIINfQpRByh6k4+hxc0O9eZz9q6Jg7LkR/g="
+      crossorigin=""
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"
+     
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    />
+    <link rel="stylesheet" href="assets/css/styles.css" />
+  </head>
+  <body>
+    <main id="app-shell" aria-label="Visor agroclimático para nogal">
+      <div id="map" role="application" aria-label="Mapa interactivo agroclimático"></div>
+
+      <header class="app-title" aria-label="Título de aplicación">
+        <span class="app-title__eyebrow">Nogal Chile</span>
+        <h1>Cartografía agroclimática</h1>
+      </header>
+
+      <aside id="control-panel" class="control-panel" aria-label="Panel de capas y variables">
+        <button id="panelToggle" class="panel-toggle" type="button" aria-expanded="true">
+          Controles
+        </button>
+
+        <div class="panel-content">
+          <label class="sr-only" for="variableSelect">Variable agroclimática</label>
+          <select id="variableSelect" class="compact-control">
+            <option value="precipitacion">Precipitación mensual</option>
+            <option value="temp_min">Temperatura mínima media</option>
+            <option value="temp_media">Temperatura media</option>
+            <option value="temp_max">Temperatura máxima media</option>
+            <option value="aptitud_nogal">Aptitud de nogal</option>
+            <option value="bioclimaticas">Variables bioclimáticas</option>
+          </select>
+
+          <label class="sr-only" for="scenarioSelect">Año o escenario climático</label>
+          <select id="scenarioSelect" class="compact-control">
+            <option value="baseline">Línea base</option>
+            <option value="2030">2030</option>
+            <option value="2050" selected>2050</option>
+            <option value="2070">2070</option>
+          </select>
+
+          <fieldset class="control-card months-card">
+            <legend class="sr-only">Mes</legend>
+            <label><input type="radio" name="month" value="0" /> Mes de enero</label>
+            <label><input type="radio" name="month" value="1" /> Mes de febrero</label>
+            <label><input type="radio" name="month" value="2" checked /> Mes de marzo</label>
+            <label><input type="radio" name="month" value="3" /> Mes de abril</label>
+            <label><input type="radio" name="month" value="4" /> Mes de mayo</label>
+            <label><input type="radio" name="month" value="5" /> Mes de junio</label>
+            <label><input type="radio" name="month" value="6" /> Mes de julio</label>
+            <label><input type="radio" name="month" value="7" /> Mes de agosto</label>
+            <label><input type="radio" name="month" value="8" /> Mes de septiembre</label>
+            <label><input type="radio" name="month" value="9" /> Mes de octubre</label>
+            <label><input type="radio" name="month" value="10" /> Mes de noviembre</label>
+            <label><input type="radio" name="month" value="11" /> Mes de diciembre</label>
+          </fieldset>
+
+          <fieldset class="control-card">
+            <legend><input id="adminToggle" type="checkbox" checked /> Límites Administrativos</legend>
+            <label class="swatch-row">
+              <input id="regionesToggle" type="checkbox" checked />
+              <span class="line-swatch line-swatch--region" aria-hidden="true"></span>
+              Regiones
+            </label>
+            <label class="swatch-row">
+              <input id="comunasToggle" type="checkbox" checked />
+              <span class="line-swatch line-swatch--commune" aria-hidden="true"></span>
+              Comunas
+            </label>
+          </fieldset>
+
+          <fieldset class="control-card opacity-card">
+            <legend>Visualización</legend>
+            <label for="opacityRange">Opacidad raster: <output id="opacityValue">64%</output></label>
+            <input id="opacityRange" type="range" min="20" max="90" value="64" />
+            <label class="smooth-row">
+              <input id="smoothToggle" type="checkbox" checked /> Suavizar raster continuo
+            </label>
+          </fieldset>
+        </div>
+      </aside>
+
+      <section id="legend" class="legend" aria-label="Leyenda de colores"></section>
+    </main>
+
+    <script
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+      crossorigin=""
+    ></script>
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"
+     
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    ></script>
+    <script src="assets/js/app.js"></script>
+  </body>
+</html>
