@@ -44,11 +44,26 @@ jobs:
           restore-keys: |
             cogs-
 
+      - name: Cache generated admin boundaries
+        id: cache-admin
+        uses: actions/cache@v4
+        with:
+          path: |
+            assets/data/regiones.geojson
+            assets/data/comunas.geojson
+          key: admin-${{ hashFiles('scripts/build_admin_boundaries.py') }}
+
+      - name: Install Python dependencies
+        if: steps.cache-cogs.outputs.cache-hit != 'true' || steps.cache-admin.outputs.cache-hit != 'true'
+        run: pip install -r scripts/requirements.txt
+
       - name: Build COGs (skip on cache hit)
         if: steps.cache-cogs.outputs.cache-hit != 'true'
-        run: |
-          pip install -r scripts/requirements.txt
-          python scripts/build_worldclim_cogs.py
+        run: python scripts/build_worldclim_cogs.py
+
+      - name: Build admin boundaries (skip on cache hit)
+        if: steps.cache-admin.outputs.cache-hit != 'true'
+        run: python scripts/build_admin_boundaries.py
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
