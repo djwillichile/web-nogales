@@ -24,6 +24,15 @@ const MONTHS = [
   'diciembre',
 ];
 
+const COG_BASE = 'assets/data/cogs';
+
+const SCENARIO_TO_FOLDER = {
+  baseline: 'baseline',
+  2030: '2030_ssp245',
+  2050: '2050_ssp245',
+  2070: '2070_ssp245',
+};
+
 const LAYER_CATALOG = {
   precipitacion: {
     label: 'Precipitación mensual',
@@ -31,8 +40,9 @@ const LAYER_CATALOG = {
     range: [0, 260],
     resampling: 'bilinear/average para visualización',
     palette: ['#9e0142', '#d53e4f', '#f46d43', '#fdae61', '#fee08b', '#abdda4', '#66c2a5', '#3288bd'],
-    note: 'Mock continuo. En producción usar COG/tiles por mes y escenario.',
-    type: 'mock',
+    note: 'WorldClim 2.1 / CMIP6 (ACCESS-CM2 SSP245), recortado a Chile centro-sur.',
+    type: 'cog',
+    cogVar: 'prec',
   },
   temp_min: {
     label: 'Temperatura mínima media',
@@ -40,8 +50,9 @@ const LAYER_CATALOG = {
     range: [-4, 16],
     resampling: 'bilinear/cubic para visualización',
     palette: ['#313695', '#4575b4', '#74add1', '#abd9e9', '#e0f3f8', '#ffffbf', '#fdae61', '#f46d43', '#a50026'],
-    note: 'Paleta térmica frío-calor para temperatura mínima.',
-    type: 'mock',
+    note: 'WorldClim 2.1 / CMIP6 (ACCESS-CM2 SSP245), recortado a Chile centro-sur.',
+    type: 'cog',
+    cogVar: 'tmin',
   },
   temp_media: {
     label: 'Temperatura media',
@@ -49,8 +60,9 @@ const LAYER_CATALOG = {
     range: [2, 24],
     resampling: 'bilinear/cubic para visualización',
     palette: ['#2c7bb6', '#00a6ca', '#00ccbc', '#90eb9d', '#ffff8c', '#f9d057', '#f29e2e', '#e76818', '#d7191c'],
-    note: 'Paleta térmica continua. Suavizado solo visual.',
-    type: 'mock',
+    note: 'WorldClim 2.1 / CMIP6 (ACCESS-CM2 SSP245). Para CMIP6, derivada como (tmin+tmax)/2.',
+    type: 'cog',
+    cogVar: 'tavg',
   },
   temp_max: {
     label: 'Temperatura máxima media',
@@ -58,8 +70,9 @@ const LAYER_CATALOG = {
     range: [8, 36],
     resampling: 'bilinear/cubic para visualización',
     palette: ['#4575b4', '#91bfdb', '#e0f3f8', '#ffffbf', '#fee090', '#fc8d59', '#d73027', '#7f0000'],
-    note: 'Paleta térmica enfatizando máximas estivales.',
-    type: 'mock',
+    note: 'WorldClim 2.1 / CMIP6 (ACCESS-CM2 SSP245), recortado a Chile centro-sur.',
+    type: 'cog',
+    cogVar: 'tmax',
   },
   aptitud_nogal: {
     label: 'Aptitud de nogal',
@@ -67,7 +80,7 @@ const LAYER_CATALOG = {
     range: ['No apta', 'Baja', 'Media', 'Alta', 'Muy alta'],
     resampling: 'nearest/mode; no usar bilinear en categorías',
     palette: ['#b2182b', '#ef8a62', '#fddbc7', '#d9f0d3', '#1a9850'],
-    note: 'Capa categórica mock. Mantener clases discretas en producción.',
+    note: 'Capa categórica mock. Pendiente derivar de aptitud climática real.',
     type: 'mock',
   },
   bioclimaticas: {
@@ -76,10 +89,17 @@ const LAYER_CATALOG = {
     range: [0, 1],
     resampling: 'bilinear/average si es variable continua',
     palette: ['#5e4fa2', '#3288bd', '#66c2a5', '#abdda4', '#e6f598', '#fee08b', '#fdae61', '#f46d43', '#9e0142'],
-    note: 'Índice bioclimático mock preparado para BIO1–BIO19 u otros índices.',
+    note: 'Índice bioclimático mock; pendiente derivar BIO1–BIO19 desde COGs WorldClim.',
     type: 'mock',
   },
 };
+
+function buildCogUrl(config) {
+  const scenarioFolder = SCENARIO_TO_FOLDER[config.scenario];
+  if (!scenarioFolder || !config.cogVar) return null;
+  const month = String(config.month + 1).padStart(2, '0');
+  return `${COG_BASE}/${scenarioFolder}/${config.cogVar}_${month}.tif`;
+}
 
 const CONTINENTAL_BOUNDS = L.latLngBounds([-44.5, -76], [-29, -68]);
 
@@ -228,20 +248,28 @@ function resolveLayerConfig() {
   };
 }
 
-function updateClimateLayer() {
+let climateLoadToken = 0;
+
+async function updateClimateLayer() {
   const config = resolveLayerConfig();
+  const token = ++climateLoadToken;
 
-  if (climateLayer) {
-    map.removeLayer(climateLayer);
-  }
+  const layer = await loadClimateLayer(config);
+  if (token !== climateLoadToken) return;  // hubo otro update mientras se cargaba
 
-  climateLayer = loadClimateLayer(config).addTo(map);
+  if (climateLayer) map.removeLayer(climateLayer);
+  climateLayer = layer.addTo(map);
   climateLayer.setZIndex?.(320);
   updateLegend(config);
   reorderOperationalLayers();
 }
 
-function loadClimateLayer(config) {
+async function loadClimateLayer(config) {
+  if (config.type === 'cog') {
+    const cogLayer = await loadCogLayer(config);
+    if (cogLayer) return cogLayer;
+  }
+
   if (config.type === 'xyz' && config.url) {
     return L.tileLayer(config.url, { opacity: config.opacity, attribution: config.attribution ?? '' });
   }
@@ -256,6 +284,80 @@ function loadClimateLayer(config) {
   }
 
   return loadMockLayer(config);
+}
+
+const georasterCache = new Map();
+
+async function loadCogLayer(config) {
+  if (typeof GeoRasterLayer === 'undefined' || typeof parseGeoraster === 'undefined') {
+    console.warn('georaster-layer-for-leaflet no cargado; usando mock.');
+    return null;
+  }
+
+  const url = buildCogUrl(config);
+  if (!url) return null;
+
+  let georaster;
+  try {
+    georaster = await fetchGeoraster(url);
+  } catch (err) {
+    console.warn(`COG no disponible (${url}). Cae a mock. Detalle:`, err.message);
+    return null;
+  }
+
+  const [min, max] = config.range;
+  const palette = config.palette;
+
+  return new GeoRasterLayer({
+    georaster,
+    opacity: config.opacity,
+    resolution: 96,
+    pixelValuesToColorFn: (values) => {
+      const v = values[0];
+      if (v === null || v === undefined || isNaN(v) || v === georaster.noDataValue) return null;
+      return interpolateColor(v, min, max, palette);
+    },
+  });
+}
+
+async function fetchGeoraster(url) {
+  if (georasterCache.has(url)) return georasterCache.get(url);
+  const promise = fetch(url, { cache: 'force-cache' })
+    .then((res) => {
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.arrayBuffer();
+    })
+    .then((buf) => parseGeoraster(buf));
+  georasterCache.set(url, promise);
+  try {
+    return await promise;
+  } catch (err) {
+    georasterCache.delete(url);
+    throw err;
+  }
+}
+
+function interpolateColor(value, min, max, palette) {
+  if (max === min) return palette[0];
+  const t = Math.max(0, Math.min(1, (value - min) / (max - min)));
+  const idx = t * (palette.length - 1);
+  const i = Math.floor(idx);
+  const f = idx - i;
+  if (i >= palette.length - 1) return palette[palette.length - 1];
+  return mixHex(palette[i], palette[i + 1], f);
+}
+
+function mixHex(a, b, t) {
+  const ar = parseInt(a.slice(1, 3), 16);
+  const ag = parseInt(a.slice(3, 5), 16);
+  const ab = parseInt(a.slice(5, 7), 16);
+  const br = parseInt(b.slice(1, 3), 16);
+  const bg = parseInt(b.slice(3, 5), 16);
+  const bb = parseInt(b.slice(5, 7), 16);
+  const r = Math.round(ar + (br - ar) * t);
+  const g = Math.round(ag + (bg - ag) * t);
+  const c = Math.round(ab + (bb - ab) * t);
+  return `rgb(${r},${g},${c})`;
 }
 
 function loadMockLayer(config) {

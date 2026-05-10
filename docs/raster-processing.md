@@ -65,3 +65,38 @@ El archivo `assets/js/app.js` contiene el objeto `LAYER_CATALOG`. Cada capa real
 - escenario;
 - mes;
 - método de resampling recomendado.
+
+## Pipeline WorldClim 2.1 + CMIP6 (implementado)
+
+El script `scripts/build_worldclim_cogs.py` automatiza la generación de los COGs que consume el visor desde `assets/data/cogs/`.
+
+### Qué genera
+
+- **Variables:** precipitación (`prec`), temperatura mínima (`tmin`), temperatura media (`tavg`), temperatura máxima (`tmax`).
+- **Escenarios:** baseline (1970–2000) + CMIP6 ACCESS-CM2 SSP245 para 2030 (2021–2040), 2050 (2041–2060) y 2070 (2061–2080).
+- **Resolución:** 2.5 arc-min (~5 km), recortado al BBOX `(-76, -44.5, -68, -29)`.
+- **Total:** 4 variables × 4 escenarios × 12 meses = **192 COGs**, ~10–40 MB en el repo.
+
+Para CMIP6, `tavg` se deriva como `(tmin + tmax) / 2` banda a banda, dado que WorldClim no publica `tavg` futuro.
+
+### Cómo correrlo
+
+```bash
+pip install -r scripts/requirements.txt
+python scripts/build_worldclim_cogs.py            # todo
+python scripts/build_worldclim_cogs.py --scenario baseline
+python scripts/build_worldclim_cogs.py --variable prec --scenario 2050_ssp245
+```
+
+Los archivos generados se commitean al repo (`assets/data/cogs/{escenario}/{var}_{MM}.tif`) y el visor los carga vía `georaster-layer-for-leaflet`. Si un COG no existe, el visor cae al raster mock SVG.
+
+### Convención de nombres
+
+```
+assets/data/cogs/baseline/prec_03.tif
+assets/data/cogs/2050_ssp245/tmin_07.tif
+```
+
+### Migración a mayor resolución
+
+Para subir a 30 arc-sec (~1 km), reemplazar `2.5m` por `30s` en las URLs del script y mover los COGs a un bucket externo (S3/R2/GCS con CORS). El JS solo necesita cambiar `COG_BASE` a la URL del bucket.

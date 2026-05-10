@@ -41,10 +41,34 @@ web-nogales/
 │   │   └── app.js
 │   └── data/
 │       ├── mock-regiones.geojson
-│       └── mock-comunas.geojson
+│       ├── mock-comunas.geojson
+│       └── cogs/                     # generados por scripts/build_worldclim_cogs.py
+│           ├── baseline/
+│           ├── 2030_ssp245/
+│           ├── 2050_ssp245/
+│           └── 2070_ssp245/
+├── scripts/
+│   ├── build_worldclim_cogs.py
+│   └── requirements.txt
 └── docs/
     └── raster-processing.md
 ```
+
+## Datos climáticos (WorldClim 2.1 + CMIP6)
+
+El visor consume Cloud Optimized GeoTIFFs (COG) generados con `scripts/build_worldclim_cogs.py`. Para regenerarlos:
+
+```bash
+pip install -r scripts/requirements.txt
+python scripts/build_worldclim_cogs.py            # baseline + 2030/2050/2070 SSP245
+```
+
+- Variables: precipitación, tmin, tmax, tavg.
+- Resolución: 2.5 arc-min (~5 km), recortado a Chile centro-sur (`-76, -44.5, -68, -29`).
+- GCM CMIP6: ACCESS-CM2, SSP245.
+- Salida: 192 COGs (~10–40 MB) en `assets/data/cogs/{escenario}/{var}_{MM}.tif`.
+
+Si los COGs no están commiteados, el visor cae al raster mock SVG sin romperse. Detalles del pipeline en [`docs/raster-processing.md`](docs/raster-processing.md).
 
 ## Ejecutar localmente
 
