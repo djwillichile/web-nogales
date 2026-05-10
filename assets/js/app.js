@@ -126,6 +126,10 @@ const ICONS = {
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4l10-10-4-4L4 16v4z"/><path d="M14 6l4 4"/></svg>',
   trash:
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/></svg>',
+  download:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>',
+  csv:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5" stroke-linecap="round"/><text x="12" y="17" text-anchor="middle" font-size="6" font-family="Inter,sans-serif" font-weight="700" fill="currentColor" stroke="none">CSV</text></svg>',
   collapse:
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>',
 };
@@ -206,13 +210,27 @@ if (L.Control.Draw) {
   });
   map.addControl(drawControl);
 
-  map.on(L.Draw.Event.CREATED, (event) => {
+  map.on(L.Draw.Event.CREATED, async (event) => {
     const layer = event.layer;
     const layerType = event.layerType;
-    layer.bindPopup(`<strong>Geometría dibujada</strong><br>Tipo: ${layerType}<br>Exportación GeoJSON pendiente.`);
     drawnItems.addLayer(layer);
     activeDrawHandler = null;
     refreshToolbarState();
+
+    if (layerType === 'polygon' || layerType === 'rectangle') {
+      layer.bindPopup('<div class="popup-card"><h3>Calculando estadísticas…</h3></div>').openPopup();
+      const stats = await computePolygonStats(layer);
+      if (stats) {
+        layer._stats = stats;
+        layer.setPopupContent(buildStatsPopup(stats));
+      } else {
+        layer.setPopupContent(
+          '<div class="popup-card"><h3>Geometría dibujada</h3><p>No hay raster activo (mock); estadísticas disponibles cuando se carguen COGs reales.</p></div>',
+        );
+      }
+    } else {
+      layer.bindPopup(`<div class="popup-card"><h3>Geometría dibujada</h3><p>Tipo: ${layerType}</p></div>`);
+    }
   });
 }
 
@@ -494,6 +512,205 @@ function toggleAdminCard() {
   refreshToolbarState();
 }
 
+/* ---------- Estadísticas zonales por polígono ---------- */
+
+function pointInRing(lon, lat, ring) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i][0];
+    const yi = ring[i][1];
+    const xj = ring[j][0];
+    const yj = ring[j][1];
+    const intersect = yi > lat !== yj > lat && lon < ((xj - xi) * (lat - yi)) / (yj - yi) + xi;
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+function pointInGeometry(lon, lat, geometry) {
+  if (geometry.type === 'Polygon') {
+    if (!pointInRing(lon, lat, geometry.coordinates[0])) return false;
+    for (let h = 1; h < geometry.coordinates.length; h++) {
+      if (pointInRing(lon, lat, geometry.coordinates[h])) return false;
+    }
+    return true;
+  }
+  if (geometry.type === 'MultiPolygon') {
+    return geometry.coordinates.some((poly) => pointInGeometry(lon, lat, { type: 'Polygon', coordinates: poly }));
+  }
+  return false;
+}
+
+function geometryBBox(geometry) {
+  let xmin = Infinity;
+  let ymin = Infinity;
+  let xmax = -Infinity;
+  let ymax = -Infinity;
+  const visit = (coords) => {
+    if (typeof coords[0] === 'number') {
+      if (coords[0] < xmin) xmin = coords[0];
+      if (coords[0] > xmax) xmax = coords[0];
+      if (coords[1] < ymin) ymin = coords[1];
+      if (coords[1] > ymax) ymax = coords[1];
+      return;
+    }
+    coords.forEach(visit);
+  };
+  visit(geometry.coordinates);
+  return { xmin, ymin, xmax, ymax };
+}
+
+function computeZonalStats(geometry, georaster) {
+  const { xmin, ymax, pixelWidth, pixelHeight, width, height, noDataValue } = georaster;
+  const data = georaster.values?.[0];
+  if (!data) return null;
+
+  const bbox = geometryBBox(geometry);
+  const colStart = Math.max(0, Math.floor((bbox.xmin - xmin) / pixelWidth));
+  const colEnd = Math.min(width - 1, Math.ceil((bbox.xmax - xmin) / pixelWidth));
+  const rowStart = Math.max(0, Math.floor((ymax - bbox.ymax) / pixelHeight));
+  const rowEnd = Math.min(height - 1, Math.ceil((ymax - bbox.ymin) / pixelHeight));
+
+  let sum = 0;
+  let sumSq = 0;
+  let count = 0;
+  let min = Infinity;
+  let max = -Infinity;
+
+  for (let row = rowStart; row <= rowEnd; row++) {
+    const lat = ymax - (row + 0.5) * pixelHeight;
+    const dataRow = data[row];
+    if (!dataRow) continue;
+    for (let col = colStart; col <= colEnd; col++) {
+      const lon = xmin + (col + 0.5) * pixelWidth;
+      if (!pointInGeometry(lon, lat, geometry)) continue;
+      const v = dataRow[col];
+      if (v === null || v === undefined || Number.isNaN(v) || v === noDataValue) continue;
+      sum += v;
+      sumSq += v * v;
+      count++;
+      if (v < min) min = v;
+      if (v > max) max = v;
+    }
+  }
+
+  if (count === 0) return null;
+  const mean = sum / count;
+  const variance = Math.max(0, sumSq / count - mean * mean);
+  return { mean, min, max, std: Math.sqrt(variance), count };
+}
+
+async function computePolygonStats(layer) {
+  const config = resolveLayerConfig();
+  if (config.type !== 'cog') return null;
+
+  const url = buildCogUrl(config);
+  if (!url) return null;
+
+  let georaster;
+  try {
+    georaster = await fetchGeoraster(url);
+  } catch {
+    return null;
+  }
+
+  const feature = layer.toGeoJSON();
+  const stats = computeZonalStats(feature.geometry, georaster);
+  if (!stats) return null;
+
+  return {
+    ...stats,
+    variable: config.label,
+    unit: config.unit,
+    scenario: config.scenario === 'baseline' ? 'Línea base' : config.scenario,
+    month: MONTHS[config.month],
+  };
+}
+
+function buildStatsPopup(stats) {
+  return `
+    <div class="popup-card">
+      <h3>Estadísticas zonales</h3>
+      <dl>
+        <dt>Variable</dt><dd>${stats.variable}</dd>
+        <dt>Escenario</dt><dd>${stats.scenario}</dd>
+        <dt>Mes</dt><dd>${stats.month}</dd>
+        <dt>Media</dt><dd>${stats.mean.toFixed(2)} ${stats.unit}</dd>
+        <dt>Mín</dt><dd>${stats.min.toFixed(2)} ${stats.unit}</dd>
+        <dt>Máx</dt><dd>${stats.max.toFixed(2)} ${stats.unit}</dd>
+        <dt>Desv. std</dt><dd>${stats.std.toFixed(2)}</dd>
+        <dt>Píxeles</dt><dd>${stats.count}</dd>
+      </dl>
+    </div>`;
+}
+
+/* ---------- Exportación de dibujos ---------- */
+
+function downloadFile(name, content, mimeType) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function csvEscape(value) {
+  const s = String(value ?? '');
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function exportDrawnItems(format) {
+  const features = [];
+  drawnItems.eachLayer((layer) => {
+    if (typeof layer.toGeoJSON !== 'function') return;
+    const f = layer.toGeoJSON();
+    if (layer._stats) {
+      f.properties = { ...(f.properties || {}), ...layer._stats };
+    }
+    features.push(f);
+  });
+
+  if (features.length === 0) {
+    alert('No hay geometrías dibujadas para exportar.');
+    return;
+  }
+
+  const stamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
+
+  if (format === 'geojson') {
+    const data = { type: 'FeatureCollection', features };
+    downloadFile(`dibujos-${stamp}.geojson`, JSON.stringify(data, null, 2), 'application/geo+json');
+    return;
+  }
+
+  if (format === 'csv') {
+    const headers = ['type', 'variable', 'scenario', 'month', 'mean', 'min', 'max', 'std', 'count', 'unit'];
+    const rows = features.map((f) => {
+      const p = f.properties || {};
+      return [
+        f.geometry?.type ?? '',
+        p.variable ?? '',
+        p.scenario ?? '',
+        p.month ?? '',
+        p.mean?.toFixed?.(3) ?? '',
+        p.min?.toFixed?.(3) ?? '',
+        p.max?.toFixed?.(3) ?? '',
+        p.std?.toFixed?.(3) ?? '',
+        p.count ?? '',
+        p.unit ?? '',
+      ]
+        .map(csvEscape)
+        .join(',');
+    });
+    const csv = [headers.join(','), ...rows].join('\n');
+    downloadFile(`dibujos-${stamp}.csv`, csv, 'text/csv');
+  }
+}
+
 makeToolbarGroup([
   { id: 'zoomIn', title: 'Acercar', icon: 'zoomIn', onClick: () => map.zoomIn() },
   { id: 'zoomOut', title: 'Alejar', icon: 'zoomOut', onClick: () => map.zoomOut() },
@@ -542,6 +759,11 @@ makeToolbarGroup([
     },
   },
   { id: 'trash', title: 'Eliminar dibujos', icon: 'trash', onClick: clearDrawnItems },
+]);
+
+makeToolbarGroup([
+  { id: 'exportGeoJSON', title: 'Exportar dibujos como GeoJSON', icon: 'download', onClick: () => exportDrawnItems('geojson') },
+  { id: 'exportCSV', title: 'Exportar estadísticas como CSV', icon: 'csv', onClick: () => exportDrawnItems('csv') },
 ]);
 
 /* ---------- Botón flotante para ocultar / mostrar todos los controles ---------- */
