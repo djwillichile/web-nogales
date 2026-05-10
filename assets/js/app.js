@@ -83,20 +83,50 @@ const LAYER_CATALOG = {
     note: 'Capa categórica mock. Pendiente derivar de aptitud climática real.',
     type: 'mock',
   },
-  bioclimaticas: {
-    label: 'Variables bioclimáticas',
-    unit: 'índice',
-    range: [0, 1],
-    resampling: 'bilinear/average si es variable continua',
-    palette: ['#5e4fa2', '#3288bd', '#66c2a5', '#abdda4', '#e6f598', '#fee08b', '#fdae61', '#f46d43', '#9e0142'],
-    note: 'Índice bioclimático mock; pendiente derivar BIO1–BIO19 desde COGs WorldClim.',
-    type: 'mock',
-  },
 };
+
+const BIO_PALETTE_TEMP = ['#313695', '#4575b4', '#74add1', '#abd9e9', '#e0f3f8', '#ffffbf', '#fdae61', '#f46d43', '#a50026'];
+const BIO_PALETTE_PREC = ['#9e0142', '#d53e4f', '#f46d43', '#fdae61', '#fee08b', '#abdda4', '#66c2a5', '#3288bd'];
+const BIO_PALETTE_DIVERGING = ['#5e4fa2', '#3288bd', '#66c2a5', '#abdda4', '#e6f598', '#fee08b', '#fdae61', '#f46d43', '#9e0142'];
+
+const BIOCLIM_META = {
+  bio_01: { label: 'BIO1 — Temp media anual', unit: '°C', range: [-2, 22], palette: BIO_PALETTE_TEMP },
+  bio_02: { label: 'BIO2 — Rango diurno medio', unit: '°C', range: [4, 18], palette: BIO_PALETTE_DIVERGING },
+  bio_03: { label: 'BIO3 — Isotermalidad', unit: '%', range: [30, 70], palette: BIO_PALETTE_DIVERGING },
+  bio_04: { label: 'BIO4 — Estacionalidad temp.', unit: '×100', range: [200, 900], palette: BIO_PALETTE_DIVERGING },
+  bio_05: { label: 'BIO5 — Tmáx mes más cálido', unit: '°C', range: [10, 32], palette: BIO_PALETTE_TEMP },
+  bio_06: { label: 'BIO6 — Tmín mes más frío', unit: '°C', range: [-10, 12], palette: BIO_PALETTE_TEMP },
+  bio_07: { label: 'BIO7 — Rango temp. anual', unit: '°C', range: [10, 30], palette: BIO_PALETTE_DIVERGING },
+  bio_08: { label: 'BIO8 — Tmedia trim. más húmedo', unit: '°C', range: [-2, 22], palette: BIO_PALETTE_TEMP },
+  bio_09: { label: 'BIO9 — Tmedia trim. más seco', unit: '°C', range: [-2, 24], palette: BIO_PALETTE_TEMP },
+  bio_10: { label: 'BIO10 — Tmedia trim. más cálido', unit: '°C', range: [2, 24], palette: BIO_PALETTE_TEMP },
+  bio_11: { label: 'BIO11 — Tmedia trim. más frío', unit: '°C', range: [-4, 16], palette: BIO_PALETTE_TEMP },
+  bio_12: { label: 'BIO12 — Precipitación anual', unit: 'mm', range: [0, 3000], palette: BIO_PALETTE_PREC },
+  bio_13: { label: 'BIO13 — Precip. mes más húmedo', unit: 'mm', range: [0, 500], palette: BIO_PALETTE_PREC },
+  bio_14: { label: 'BIO14 — Precip. mes más seco', unit: 'mm', range: [0, 80], palette: BIO_PALETTE_PREC },
+  bio_15: { label: 'BIO15 — Estacionalidad precip.', unit: '%', range: [10, 130], palette: BIO_PALETTE_DIVERGING },
+  bio_16: { label: 'BIO16 — Precip. trim. más húmedo', unit: 'mm', range: [0, 1200], palette: BIO_PALETTE_PREC },
+  bio_17: { label: 'BIO17 — Precip. trim. más seco', unit: 'mm', range: [0, 250], palette: BIO_PALETTE_PREC },
+  bio_18: { label: 'BIO18 — Precip. trim. más cálido', unit: 'mm', range: [0, 500], palette: BIO_PALETTE_PREC },
+  bio_19: { label: 'BIO19 — Precip. trim. más frío', unit: 'mm', range: [0, 1500], palette: BIO_PALETTE_PREC },
+};
+
+Object.entries(BIOCLIM_META).forEach(([id, meta]) => {
+  LAYER_CATALOG[id] = {
+    ...meta,
+    type: 'cog',
+    cogVar: 'bio',
+    bioIndex: parseInt(id.split('_')[1], 10),
+    note: 'WorldClim 2.1 / CMIP6 (ACCESS-CM2 SSP245). Variable bioclimática anual.',
+  };
+});
 
 function buildCogUrl(config) {
   const scenarioFolder = SCENARIO_TO_FOLDER[config.scenario];
   if (!scenarioFolder || !config.cogVar) return null;
+  if (config.cogVar === 'bio') {
+    return `${COG_BASE}/${scenarioFolder}/bio_${String(config.bioIndex).padStart(2, '0')}.tif`;
+  }
   const month = String(config.month + 1).padStart(2, '0');
   return `${COG_BASE}/${scenarioFolder}/${config.cogVar}_${month}.tif`;
 }
@@ -237,6 +267,7 @@ if (L.Control.Draw) {
 const variableSelect = document.querySelector('#variableSelect');
 const scenarioSelect = document.querySelector('#scenarioSelect');
 const monthSelect = document.querySelector('#monthSelect');
+const monthCard = monthSelect.closest('.card');
 const opacityRange = document.querySelector('#opacityRange');
 const smoothToggle = document.querySelector('#smoothToggle');
 const regionesToggle = document.querySelector('#regionesToggle');
@@ -245,6 +276,26 @@ const adminToggle = document.querySelector('#adminToggle');
 const adminCard = document.querySelector('#adminCard');
 const cardStack = document.querySelector('.card-stack');
 const legendEl = document.querySelector('#legend');
+
+// Inserta dinámicamente las 19 opciones BIO al select de variable.
+const bioGroup = document.createElement('optgroup');
+bioGroup.label = 'Bioclimáticas (anuales)';
+Object.entries(BIOCLIM_META).forEach(([id, meta]) => {
+  const opt = document.createElement('option');
+  opt.value = id;
+  opt.textContent = meta.label;
+  bioGroup.appendChild(opt);
+});
+variableSelect.appendChild(bioGroup);
+
+function isAnnualVariable(variableId) {
+  const cfg = LAYER_CATALOG[variableId];
+  return cfg?.cogVar === 'bio' || variableId === 'aptitud_nogal';
+}
+
+function updateMonthCardVisibility() {
+  if (monthCard) monthCard.hidden = isAnnualVariable(variableSelect.value);
+}
 
 function getSelectedMonthIndex() {
   return Number(monthSelect.value);
@@ -416,10 +467,9 @@ function loadMockLayer(config) {
 }
 
 function updateLegend(config) {
-  const subtitle =
-    config.id === 'aptitud_nogal'
-      ? `${config.scenario === 'baseline' ? 'línea base' : config.scenario}`
-      : `${config.scenario === 'baseline' ? 'línea base' : config.scenario} · ${MONTHS[config.month]}`;
+  const scenarioLabel = config.scenario === 'baseline' ? 'línea base' : config.scenario;
+  const isAnnual = config.id === 'aptitud_nogal' || config.cogVar === 'bio';
+  const subtitle = isAnnual ? scenarioLabel : `${scenarioLabel} · ${MONTHS[config.month]}`;
   const title = `${config.label} (${config.unit})`;
 
   if (config.id === 'aptitud_nogal') {
@@ -1043,8 +1093,13 @@ function getMockClimateValue(lat, lng, config) {
     return 'No apta';
   }
 
-  const value = 0.25 + northSouth * 0.45 + coastCordillera * 0.15 - scenarioDelta * 0.08;
-  return `${Math.max(0, Math.min(1, value)).toFixed(2)} índice`;
+  if (config.cogVar === 'bio') {
+    const [min, max] = config.range;
+    const value = min + northSouth * (max - min) * 0.7 + coastCordillera * (max - min) * 0.2;
+    return `${value.toFixed(1)} ${config.unit}`;
+  }
+
+  return '—';
 }
 
 function formatPopupContent(latlng) {
@@ -1055,6 +1110,8 @@ function formatPopupContent(latlng) {
     activeAdmin.provincia ? `<dt>Provincia</dt><dd>${activeAdmin.provincia}</dd>` : '',
     activeAdmin.comuna ? `<dt>Comuna</dt><dd>${activeAdmin.comuna}</dd>` : '',
   ].join('');
+  const isAnnual = config.id === 'aptitud_nogal' || config.cogVar === 'bio';
+  const monthRow = isAnnual ? '' : `<dt>Mes</dt><dd>${MONTHS[config.month]}</dd>`;
   return `
     <div class="popup-card">
       <h3>${activeAdmin.name}</h3>
@@ -1063,7 +1120,7 @@ function formatPopupContent(latlng) {
         <dt>Coordenadas</dt><dd>${latlng.lng.toFixed(5)}, ${latlng.lat.toFixed(5)}</dd>
         <dt>Variable</dt><dd>${config.label}</dd>
         <dt>Escenario</dt><dd>${config.scenario === 'baseline' ? 'Línea base' : config.scenario}</dd>
-        <dt>Mes</dt><dd>${MONTHS[config.month]}</dd>
+        ${monthRow}
         <dt>Valor</dt><dd>${value}</dd>
       </dl>
     </div>`;
@@ -1084,6 +1141,8 @@ map.on('click', (event) => {
   control.addEventListener('input', updateClimateLayer);
 });
 
+variableSelect.addEventListener('change', updateMonthCardVisibility);
+
 [regionesToggle, comunasToggle].forEach((control) => {
   control.addEventListener('change', () => {
     adminToggle.checked = regionesToggle.checked || comunasToggle.checked;
@@ -1094,6 +1153,7 @@ map.on('click', (event) => {
 
 map.whenReady(() => {
   map.fitBounds(INITIAL_VIEW.bounds);
+  updateMonthCardVisibility();
   updateClimateLayer();
   loadAdministrativeLayers();
   refreshToolbarState();
