@@ -182,7 +182,7 @@ L.control.scale({ imperial: false, maxWidth: 240, position: 'bottomleft' }).addT
 let climateLayer = null;
 let regionesLayer = null;
 let comunasLayer = null;
-let activeAdminName = 'Zona consultada';
+let activeAdmin = { name: 'Zona consultada', region: null, provincia: null, comuna: null };
 
 const drawnItems = new L.FeatureGroup();
 map.addLayer(drawnItems);
@@ -599,35 +599,68 @@ map.on('locationerror', () => alert('No fue posible obtener la ubicación desde 
 
 /* ---------- Límites administrativos ---------- */
 
-function loadAdministrativeLayers() {
-  Promise.all([
-    fetch('assets/data/mock-regiones.geojson').then((response) => response.json()),
-    fetch('assets/data/mock-comunas.geojson').then((response) => response.json()),
-  ])
-    .then(([regiones, comunas]) => {
-      regionesLayer = L.geoJSON(regiones, {
-        style: () => ({ color: '#ff1f1f', weight: 2, fillOpacity: 0, opacity: 0.95 }),
-        onEachFeature: bindAdminFeature,
-      });
+async function fetchFirstAvailable(urls) {
+  for (const url of urls) {
+    try {
+      const res = await fetch(url);
+      if (res.ok) return await res.json();
+    } catch {
+      // sigue al siguiente fallback
+    }
+  }
+  throw new Error(`Ningún path disponible: ${urls.join(', ')}`);
+}
 
-      comunasLayer = L.geoJSON(comunas, {
-        style: () => ({ color: '#5f6f73', weight: 0.8, fillOpacity: 0, opacity: 0.75 }),
-        onEachFeature: bindAdminFeature,
-      });
+async function loadAdministrativeLayers() {
+  try {
+    const [regiones, comunas] = await Promise.all([
+      fetchFirstAvailable(['assets/data/regiones.geojson', 'assets/data/mock-regiones.geojson']),
+      fetchFirstAvailable(['assets/data/comunas.geojson', 'assets/data/mock-comunas.geojson']),
+    ]);
 
-      updateAdministrativeVisibility();
-      reorderOperationalLayers();
-    })
-    .catch(() => {
-      alert('No fue posible cargar límites administrativos mock. Use servidor local, no file://.');
+    regionesLayer = L.geoJSON(regiones, {
+      style: () => ({ color: '#ff1f1f', weight: 2, fillOpacity: 0, opacity: 0.95 }),
+      onEachFeature: bindAdminFeature,
     });
+
+    comunasLayer = L.geoJSON(comunas, {
+      style: () => ({ color: '#5f6f73', weight: 0.8, fillOpacity: 0, opacity: 0.75 }),
+      onEachFeature: bindAdminFeature,
+    });
+
+    updateAdministrativeVisibility();
+    reorderOperationalLayers();
+  } catch (err) {
+    console.warn('No fue posible cargar límites administrativos:', err.message);
+  }
+}
+
+function adminInfoFromFeature(feature) {
+  const p = feature.properties || {};
+  return {
+    region: p.Region ?? p.region ?? p.NOM_REG ?? null,
+    provincia: p.Provincia ?? p.provincia ?? p.NOM_PROV ?? null,
+    comuna: p.Comuna ?? p.comuna ?? p.NOM_COM ?? null,
+  };
 }
 
 function bindAdminFeature(feature, layer) {
-  const name = feature.properties?.name ?? feature.properties?.NOMBRE ?? 'Límite administrativo';
-  layer.on('mouseover', () => { activeAdminName = name; });
-  layer.on('mouseout', () => { activeAdminName = 'Zona consultada'; });
-  layer.bindPopup(`<strong>${name}</strong><br>Límite administrativo mock no oficial.`);
+  const info = adminInfoFromFeature(feature);
+  const name = info.comuna ?? info.provincia ?? info.region ?? 'Límite administrativo';
+
+  layer.on('mouseover', () => {
+    activeAdmin = { name, region: info.region, provincia: info.provincia, comuna: info.comuna };
+  });
+  layer.on('mouseout', () => {
+    activeAdmin = { name: 'Zona consultada', region: null, provincia: null, comuna: null };
+  });
+
+  const rows = [
+    info.region ? `<dt>Región</dt><dd>${info.region}</dd>` : '',
+    info.provincia ? `<dt>Provincia</dt><dd>${info.provincia}</dd>` : '',
+    info.comuna ? `<dt>Comuna</dt><dd>${info.comuna}</dd>` : '',
+  ].join('');
+  layer.bindPopup(`<div class="popup-card"><h3>${name}</h3><dl>${rows}</dl></div>`);
 }
 
 function updateAdministrativeVisibility() {
@@ -695,10 +728,16 @@ function getMockClimateValue(lat, lng, config) {
 function formatPopupContent(latlng) {
   const config = resolveLayerConfig();
   const value = getMockClimateValue(latlng.lat, latlng.lng, config);
+  const adminRows = [
+    activeAdmin.region ? `<dt>Región</dt><dd>${activeAdmin.region}</dd>` : '',
+    activeAdmin.provincia ? `<dt>Provincia</dt><dd>${activeAdmin.provincia}</dd>` : '',
+    activeAdmin.comuna ? `<dt>Comuna</dt><dd>${activeAdmin.comuna}</dd>` : '',
+  ].join('');
   return `
     <div class="popup-card">
-      <h3>${activeAdminName}</h3>
+      <h3>${activeAdmin.name}</h3>
       <dl>
+        ${adminRows}
         <dt>Coordenadas</dt><dd>${latlng.lng.toFixed(5)}, ${latlng.lat.toFixed(5)}</dd>
         <dt>Variable</dt><dd>${config.label}</dd>
         <dt>Escenario</dt><dd>${config.scenario === 'baseline' ? 'Línea base' : config.scenario}</dd>
