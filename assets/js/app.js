@@ -1123,6 +1123,11 @@ function formatPopupContent(latlng) {
         ${monthRow}
         <dt>Valor</dt><dd>${value}</dd>
       </dl>
+      <button type="button" class="popup-action" data-action="climograph"
+        data-lat="${latlng.lat}" data-lon="${latlng.lng}" data-scenario="${config.scenario}"
+        data-place="${escapeHtml(activeAdmin.name)}">
+        Ver diagrama hombrotérmico
+      </button>
     </div>`;
 }
 
@@ -1148,6 +1153,223 @@ variableSelect.addEventListener('change', updateMonthCardVisibility);
     adminToggle.checked = regionesToggle.checked || comunasToggle.checked;
     updateAdministrativeVisibility();
     reorderOperationalLayers();
+  });
+});
+
+/* ---------- Diagrama hombrotérmico (Walter-Lieth) ---------- */
+
+const climographModal = document.querySelector('#climographModal');
+const climographTitle = document.querySelector('#climographTitle');
+const climographSubtitle = document.querySelector('#climographSubtitle');
+const climographStatus = document.querySelector('#climographStatus');
+const climographCanvasWrap = document.querySelector('.modal-canvas-wrap');
+const climographCanvas = document.querySelector('#climographCanvas');
+let climographChart = null;
+
+function sampleGeorasterAtPoint(georaster, lon, lat) {
+  const { xmin, ymax, pixelWidth, pixelHeight, width, height, noDataValue } = georaster;
+  const col = Math.floor((lon - xmin) / pixelWidth);
+  const row = Math.floor((ymax - lat) / pixelHeight);
+  if (col < 0 || col >= width || row < 0 || row >= height) return null;
+  const v = georaster.values?.[0]?.[row]?.[col];
+  if (v === null || v === undefined || Number.isNaN(v) || v === noDataValue) return null;
+  return v;
+}
+
+async function sampleMonthly(cogVar, scenario, lat, lon) {
+  const folder = SCENARIO_TO_FOLDER[scenario];
+  if (!folder) return new Array(12).fill(null);
+  const tasks = Array.from({ length: 12 }, (_, i) => i + 1).map(async (m) => {
+    const url = `${COG_BASE}/${folder}/${cogVar}_${String(m).padStart(2, '0')}.tif`;
+    try {
+      const gr = await fetchGeoraster(url);
+      return sampleGeorasterAtPoint(gr, lon, lat);
+    } catch {
+      return null;
+    }
+  });
+  return Promise.all(tasks);
+}
+
+async function buildClimographData(lat, lon, scenario) {
+  const [prec, tmin, tavg, tmax] = await Promise.all([
+    sampleMonthly('prec', scenario, lat, lon),
+    sampleMonthly('tmin', scenario, lat, lon),
+    sampleMonthly('tavg', scenario, lat, lon),
+    sampleMonthly('tmax', scenario, lat, lon),
+  ]);
+  return { prec, tmin, tavg, tmax };
+}
+
+function hasAnyData(arr) {
+  return arr.some((v) => v !== null && v !== undefined && !Number.isNaN(v));
+}
+
+function renderClimograph(data) {
+  if (typeof Chart === 'undefined') {
+    climographStatus.hidden = false;
+    climographStatus.textContent = 'Chart.js no se cargó. Revisa tu conexión.';
+    return;
+  }
+
+  const allEmpty = !hasAnyData(data.prec) && !hasAnyData(data.tavg);
+  if (allEmpty) {
+    climographStatus.hidden = false;
+    climographStatus.textContent = 'No hay datos raster en este punto (puede estar fuera del bbox de Chile centro-sur o sobre mar).';
+    climographCanvasWrap.hidden = true;
+    return;
+  }
+
+  climographStatus.hidden = true;
+  climographCanvasWrap.hidden = false;
+
+  if (climographChart) {
+    climographChart.destroy();
+    climographChart = null;
+  }
+
+  // Para Walter-Lieth visual: prec en mm, temp en °C, doble eje.
+  climographChart = new Chart(climographCanvas, {
+    type: 'bar',
+    data: {
+      labels: MONTHS.map((m) => m.charAt(0).toUpperCase() + m.slice(1, 3)),
+      datasets: [
+        {
+          type: 'bar',
+          label: 'Precipitación (mm)',
+          data: data.prec,
+          backgroundColor: 'rgba(50, 130, 200, 0.55)',
+          borderColor: 'rgba(50, 130, 200, 0.9)',
+          borderWidth: 1,
+          yAxisID: 'yPrec',
+          order: 3,
+        },
+        {
+          type: 'line',
+          label: 'Tmáx (°C)',
+          data: data.tmax,
+          borderColor: '#fc8d59',
+          backgroundColor: 'transparent',
+          borderDash: [4, 3],
+          tension: 0.3,
+          pointRadius: 2,
+          yAxisID: 'yTemp',
+          order: 1,
+        },
+        {
+          type: 'line',
+          label: 'Tmedia (°C)',
+          data: data.tavg,
+          borderColor: '#d73027',
+          backgroundColor: 'rgba(215, 48, 39, 0.08)',
+          borderWidth: 2.5,
+          tension: 0.3,
+          pointRadius: 3,
+          fill: true,
+          yAxisID: 'yTemp',
+          order: 2,
+        },
+        {
+          type: 'line',
+          label: 'Tmín (°C)',
+          data: data.tmin,
+          borderColor: '#4575b4',
+          backgroundColor: 'transparent',
+          borderDash: [4, 3],
+          tension: 0.3,
+          pointRadius: 2,
+          yAxisID: 'yTemp',
+          order: 1,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 14, font: { size: 11 } } },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              const v = ctx.parsed.y;
+              if (v === null || v === undefined) return `${ctx.dataset.label}: —`;
+              const unit = ctx.dataset.yAxisID === 'yPrec' ? ' mm' : ' °C';
+              return `${ctx.dataset.label}: ${v.toFixed(1)}${unit}`;
+            },
+          },
+        },
+      },
+      scales: {
+        yTemp: {
+          type: 'linear',
+          position: 'left',
+          title: { display: true, text: 'Temperatura (°C)' },
+          grid: { color: 'rgba(0,0,0,0.06)' },
+        },
+        yPrec: {
+          type: 'linear',
+          position: 'right',
+          title: { display: true, text: 'Precipitación (mm)' },
+          grid: { drawOnChartArea: false },
+          beginAtZero: true,
+        },
+      },
+    },
+  });
+}
+
+async function openClimograph({ lat, lon, scenario, place }) {
+  const scenarioLabel = scenario === 'baseline' ? 'Línea base (1970–2000)' : `${scenario} (CMIP6 ACCESS-CM2 SSP245)`;
+  climographTitle.textContent = `Diagrama hombrotérmico — ${place}`;
+  climographSubtitle.textContent = `${scenarioLabel} · ${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+  climographStatus.hidden = false;
+  climographStatus.textContent = 'Cargando datos…';
+  climographCanvasWrap.hidden = true;
+
+  if (climographChart) {
+    climographChart.destroy();
+    climographChart = null;
+  }
+
+  climographModal.hidden = false;
+
+  try {
+    const data = await buildClimographData(lat, lon, scenario);
+    renderClimograph(data);
+  } catch (err) {
+    console.warn('Error armando climograph:', err);
+    climographStatus.hidden = false;
+    climographStatus.textContent = 'Error al cargar datos del diagrama.';
+  }
+}
+
+function closeClimograph() {
+  climographModal.hidden = true;
+  if (climographChart) {
+    climographChart.destroy();
+    climographChart = null;
+  }
+}
+
+climographModal.addEventListener('click', (event) => {
+  if (event.target.matches('[data-close]')) closeClimograph();
+});
+
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && !climographModal.hidden) closeClimograph();
+});
+
+document.addEventListener('click', (event) => {
+  const btn = event.target.closest('[data-action="climograph"]');
+  if (!btn) return;
+  event.preventDefault();
+  event.stopPropagation();
+  openClimograph({
+    lat: Number(btn.dataset.lat),
+    lon: Number(btn.dataset.lon),
+    scenario: btn.dataset.scenario || 'baseline',
+    place: btn.dataset.place || 'Punto',
   });
 });
 
