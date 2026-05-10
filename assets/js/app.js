@@ -83,8 +83,35 @@ const LAYER_CATALOG = {
 
 const CONTINENTAL_BOUNDS = L.latLngBounds([-44.5, -76], [-29, -68]);
 
+const ICONS = {
+  zoomIn:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  zoomOut:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M5 12h14"/></svg>',
+  home:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg>',
+  refresh:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg>',
+  gps:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>',
+  search:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6"/><path d="M20 20l-3.5-3.5"/></svg>',
+  query:
+    '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M5 7c1.5-2 4-3 6-3s4.5 1 6 3l1 .5-1 .5c-1.5 2-4 3-6 3s-4.5-1-6-3l-1-.5L5 7zm-2 8a3 3 0 1 1 6 0 3 3 0 0 1-6 0zm12 0a3 3 0 1 1 6 0 3 3 0 0 1-6 0zM6 15a0 0 0 0 0 0 0zm12 0a0 0 0 0 0 0 0z" opacity="0"/><path d="M3 11h18v2H3z" opacity="0"/><path d="M5.5 7C7 5.3 9.4 4 12 4s5 1.3 6.5 3l1.5.7-1.5.8C17 10.2 14.6 11.5 12 11.5S7 10.2 5.5 9L4 8.3 5.5 7zM3 17a3 3 0 1 0 6 0 3 3 0 0 0-6 0zm12 0a3 3 0 1 0 6 0 3 3 0 0 0-6 0z"/></svg>',
+  polygon:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><polygon points="12,3 21,9 18,20 6,20 3,9"/></svg>',
+  marker:
+    '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z"/></svg>',
+  edit:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4l10-10-4-4L4 16v4z"/><path d="M14 6l4 4"/></svg>',
+  trash:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/></svg>',
+  collapse:
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>',
+};
+
 const map = L.map('map', {
-  zoomControl: true,
+  zoomControl: false,
   minZoom: 5,
   maxZoom: 13,
   maxBounds: CONTINENTAL_BOUNDS,
@@ -130,7 +157,7 @@ L.control
     { position: 'bottomleft' },
   )
   .addTo(map);
-L.control.scale({ imperial: false, maxWidth: 300 }).addTo(map);
+L.control.scale({ imperial: false, maxWidth: 240, position: 'bottomleft' }).addTo(map);
 
 let climateLayer = null;
 let regionesLayer = null;
@@ -140,18 +167,22 @@ let activeAdminName = 'Zona consultada';
 const drawnItems = new L.FeatureGroup();
 map.addLayer(drawnItems);
 
+let activeDrawHandler = null;
+
 if (L.Control.Draw) {
+  // Registramos el control para reusar sus handlers, pero el CSS lo oculta:
+  // los botones quedan en nuestra toolbar custom.
   const drawControl = new L.Control.Draw({
     position: 'topleft',
     draw: {
       polyline: false,
       circle: false,
       circlemarker: false,
-      marker: true,
+      marker: false,
       polygon: { allowIntersection: false, showArea: true },
-      rectangle: true,
+      rectangle: false,
     },
-    edit: { featureGroup: drawnItems, remove: true },
+    edit: { featureGroup: drawnItems, remove: false },
   });
   map.addControl(drawControl);
 
@@ -160,22 +191,25 @@ if (L.Control.Draw) {
     const layerType = event.layerType;
     layer.bindPopup(`<strong>Geometría dibujada</strong><br>Tipo: ${layerType}<br>Exportación GeoJSON pendiente.`);
     drawnItems.addLayer(layer);
+    activeDrawHandler = null;
+    refreshToolbarState();
   });
 }
 
 const variableSelect = document.querySelector('#variableSelect');
 const scenarioSelect = document.querySelector('#scenarioSelect');
+const monthSelect = document.querySelector('#monthSelect');
 const opacityRange = document.querySelector('#opacityRange');
-const opacityValue = document.querySelector('#opacityValue');
 const smoothToggle = document.querySelector('#smoothToggle');
 const regionesToggle = document.querySelector('#regionesToggle');
 const comunasToggle = document.querySelector('#comunasToggle');
 const adminToggle = document.querySelector('#adminToggle');
-const panelToggle = document.querySelector('#panelToggle');
-const controlPanel = document.querySelector('#control-panel');
+const adminCard = document.querySelector('#adminCard');
+const cardStack = document.querySelector('.card-stack');
+const legendEl = document.querySelector('#legend');
 
 function getSelectedMonthIndex() {
-  return Number(document.querySelector('input[name="month"]:checked')?.value ?? 0);
+  return Number(monthSelect.value);
 }
 
 function getOpacity() {
@@ -203,7 +237,6 @@ function updateClimateLayer() {
 
   climateLayer = loadClimateLayer(config).addTo(map);
   climateLayer.setZIndex?.(320);
-  opacityValue.textContent = `${Math.round(config.opacity * 100)}%`;
   updateLegend(config);
   reorderOperationalLayers();
 }
@@ -226,7 +259,6 @@ function loadClimateLayer(config) {
 }
 
 function loadMockLayer(config) {
-  // SVG suave: reemplazar por tiles reales COG/WMS/XYZ cuando existan rasters productivos.
   const bounds = [[-41.25, -74.2], [-34.05, -70.05]];
   const gradientStops = config.palette
     .map((color, index) => `<stop offset="${(index / (config.palette.length - 1)) * 100}%" stop-color="${color}"/>`)
@@ -264,54 +296,89 @@ function loadMockLayer(config) {
 }
 
 function updateLegend(config) {
-  const legend = document.querySelector('#legend');
-  const title = `${config.label} · ${config.scenario === 'baseline' ? 'línea base' : config.scenario} · ${MONTHS[config.month]}`;
+  const subtitle =
+    config.id === 'aptitud_nogal'
+      ? `${config.scenario === 'baseline' ? 'línea base' : config.scenario}`
+      : `${config.scenario === 'baseline' ? 'línea base' : config.scenario} · ${MONTHS[config.month]}`;
+  const title = `${config.label} (${config.unit})`;
 
   if (config.id === 'aptitud_nogal') {
-    legend.innerHTML = `
-      <h2>${title}</h2>
+    legendEl.innerHTML = `
+      <h2>${title} · ${subtitle}</h2>
       <div class="legend-categories">
         ${config.range
           .map((label, index) => `<div class="legend-category"><span style="background:${config.palette[index]}"></span><span>${label}</span></div>`)
           .join('')}
       </div>
-      <p class="legend-note">Resolución mock 1 km. Variable categórica: usar nearest/mode, sin suavizado bilinear.</p>`;
+      <p class="legend-note">${config.note}</p>`;
     return;
   }
 
   const [min, max] = config.range;
-  legend.innerHTML = `
-    <h2>${title}</h2>
+  legendEl.innerHTML = `
+    <h2>${title} · ${subtitle}</h2>
     <div class="legend-gradient" style="background: linear-gradient(90deg, ${config.palette.join(',')})"></div>
-    <div class="legend-labels"><span>${min} ${config.unit}</span><span>${max} ${config.unit}</span></div>
-    <p class="legend-note">${config.note} Resolución mock 1 km; suavizado solo visual.</p>`;
+    <div class="legend-labels"><span>${min}</span><span>${max}</span></div>
+    <p class="legend-note">${config.note}</p>`;
 }
 
-function addToolControl(buttons) {
+/* ---------- Toolbar custom (lado izquierdo) ---------- */
+
+const toolButtons = new Map();
+
+function renderToolButton(container, def) {
+  const btn = L.DomUtil.create('button', 'tool-button', container);
+  btn.type = 'button';
+  btn.title = def.title;
+  btn.setAttribute('aria-label', def.title);
+  btn.innerHTML = ICONS[def.icon] ?? '';
+  L.DomEvent.on(btn, 'click', L.DomEvent.stop).on(btn, 'click', () => def.onClick(btn));
+  toolButtons.set(def.id, btn);
+  return btn;
+}
+
+function makeToolbarGroup(buttons) {
   const control = L.control({ position: 'topleft' });
   control.onAdd = () => {
-    const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
-    buttons.forEach((button) => {
-      const el = L.DomUtil.create('button', 'tool-button', container);
-      el.type = 'button';
-      el.title = button.title;
-      el.setAttribute('aria-label', button.title);
-      el.innerHTML = button.icon;
-      L.DomEvent.on(el, 'click', L.DomEvent.stop).on(el, 'click', button.onClick);
-    });
-    return container;
+    const wrapper = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+    L.DomEvent.disableClickPropagation(wrapper);
+    L.DomEvent.disableScrollPropagation(wrapper);
+    buttons.forEach((def) => renderToolButton(wrapper, def));
+    return wrapper;
   };
   control.addTo(map);
+  return control;
 }
 
-addToolControl([
-  { title: 'Vista inicial', icon: '⌂', onClick: () => map.fitBounds(INITIAL_VIEW.bounds) },
-  { title: 'Refrescar capas', icon: '⟳', onClick: () => { map.setView(INITIAL_VIEW.center, INITIAL_VIEW.zoom); updateClimateLayer(); } },
-  { title: 'Ubicarme', icon: '⌖', onClick: () => map.locate({ setView: true, maxZoom: 10 }) },
-  { title: 'Buscar lugar (preparado)', icon: '⌕', onClick: () => alert('Búsqueda geográfica preparada para geocoder futuro.') },
-  { title: 'Consulta espacial', icon: '▣', onClick: () => alert('Haga clic sobre el mapa para consultar valores simulados.') },
-  { title: 'Agregar marcador', icon: '⌾', onClick: addManualMarker },
-]);
+function refreshToolbarState() {
+  toolButtons.forEach((btn, id) => {
+    if (id === 'admin') {
+      btn.classList.toggle('is-active', !adminCard.hidden);
+    } else if (id === 'polygon') {
+      btn.classList.toggle('is-active', activeDrawHandler instanceof L.Draw.Polygon);
+    } else if (id === 'marker') {
+      btn.classList.toggle('is-active', false);
+    }
+  });
+}
+
+function startDraw(HandlerCtor) {
+  activeDrawHandler?.disable?.();
+  if (!HandlerCtor) {
+    activeDrawHandler = null;
+    refreshToolbarState();
+    return;
+  }
+  activeDrawHandler = new HandlerCtor(map, { allowIntersection: false, showArea: true });
+  activeDrawHandler.enable();
+  refreshToolbarState();
+}
+
+function clearDrawnItems() {
+  if (drawnItems.getLayers().length === 0) return;
+  if (!confirm('¿Eliminar todos los marcadores y geometrías dibujadas?')) return;
+  drawnItems.clearLayers();
+}
 
 function addManualMarker() {
   const marker = L.marker(map.getCenter(), { draggable: true })
@@ -319,6 +386,100 @@ function addManualMarker() {
     .addTo(drawnItems);
   marker.openPopup();
 }
+
+function toggleAdminCard() {
+  adminCard.hidden = !adminCard.hidden;
+  refreshToolbarState();
+}
+
+makeToolbarGroup([
+  { id: 'zoomIn', title: 'Acercar', icon: 'zoomIn', onClick: () => map.zoomIn() },
+  { id: 'zoomOut', title: 'Alejar', icon: 'zoomOut', onClick: () => map.zoomOut() },
+]);
+
+makeToolbarGroup([
+  { id: 'home', title: 'Vista inicial', icon: 'home', onClick: () => map.fitBounds(INITIAL_VIEW.bounds) },
+  {
+    id: 'refresh',
+    title: 'Refrescar capas',
+    icon: 'refresh',
+    onClick: () => {
+      map.setView(INITIAL_VIEW.center, INITIAL_VIEW.zoom);
+      updateClimateLayer();
+    },
+  },
+  { id: 'gps', title: 'Ubicarme', icon: 'gps', onClick: () => map.locate({ setView: true, maxZoom: 10 }) },
+  {
+    id: 'search',
+    title: 'Buscar lugar (preparado)',
+    icon: 'search',
+    onClick: () => alert('Búsqueda geográfica preparada para geocoder futuro.'),
+  },
+  { id: 'admin', title: 'Límites administrativos', icon: 'query', onClick: toggleAdminCard },
+]);
+
+makeToolbarGroup([
+  {
+    id: 'polygon',
+    title: 'Dibujar polígono',
+    icon: 'polygon',
+    onClick: () => {
+      if (activeDrawHandler instanceof L.Draw.Polygon) {
+        startDraw(null);
+      } else {
+        startDraw(L.Draw.Polygon);
+      }
+    },
+  },
+  { id: 'marker', title: 'Agregar marcador', icon: 'marker', onClick: addManualMarker },
+  {
+    id: 'edit',
+    title: 'Editar dibujos',
+    icon: 'edit',
+    onClick: () => {
+      if (drawnItems.getLayers().length === 0) {
+        alert('No hay geometrías dibujadas para editar.');
+        return;
+      }
+      alert('Edición rápida: arrastra los marcadores para reubicarlos. Para edición avanzada de polígonos, próximamente.');
+    },
+  },
+  { id: 'trash', title: 'Eliminar dibujos', icon: 'trash', onClick: clearDrawnItems },
+]);
+
+/* ---------- Botón flotante para ocultar / mostrar todos los controles ---------- */
+
+const collapseToggle = document.createElement('button');
+collapseToggle.type = 'button';
+collapseToggle.className = 'collapse-toggle';
+collapseToggle.title = 'Mostrar controles';
+collapseToggle.setAttribute('aria-label', 'Mostrar controles');
+collapseToggle.innerHTML = ICONS.collapse;
+document.querySelector('#app-shell').appendChild(collapseToggle);
+
+const hideControlsBtn = document.createElement('button');
+hideControlsBtn.type = 'button';
+hideControlsBtn.className = 'card-hide-btn';
+hideControlsBtn.title = 'Ocultar controles';
+hideControlsBtn.setAttribute('aria-label', 'Ocultar controles');
+hideControlsBtn.innerHTML = '&times;';
+cardStack.insertBefore(hideControlsBtn, cardStack.firstChild);
+
+function setControlsVisible(visible) {
+  cardStack.hidden = !visible;
+  legendEl.hidden = !visible;
+  document
+    .querySelectorAll('.leaflet-control-container .leaflet-top.leaflet-left, .leaflet-control-container .leaflet-bottom')
+    .forEach((el) => {
+      el.style.display = visible ? '' : 'none';
+    });
+  collapseToggle.classList.toggle('is-visible', !visible);
+}
+
+hideControlsBtn.addEventListener('click', () => setControlsVisible(false));
+collapseToggle.addEventListener('click', () => setControlsVisible(true));
+
+/* ---------- Geolocalización ---------- */
 
 map.on('locationfound', (event) => {
   L.circleMarker(event.latlng, {
@@ -333,6 +494,8 @@ map.on('locationfound', (event) => {
 });
 
 map.on('locationerror', () => alert('No fue posible obtener la ubicación desde el navegador.'));
+
+/* ---------- Límites administrativos ---------- */
 
 function loadAdministrativeLayers() {
   Promise.all([
@@ -385,6 +548,8 @@ function reorderOperationalLayers() {
   regionesLayer?.bringToFront?.();
   drawnItems.bringToFront();
 }
+
+/* ---------- Popups con valor mock ---------- */
 
 function getMockClimateValue(lat, lng, config) {
   const northSouth = Math.max(0, Math.min(1, (lat + 41.4) / 7.4));
@@ -442,42 +607,31 @@ function formatPopupContent(latlng) {
 }
 
 map.on('click', (event) => {
+  if (activeDrawHandler) return;
   L.popup({ maxWidth: 285 })
     .setLatLng(event.latlng)
     .setContent(formatPopupContent(event.latlng))
     .openOn(map);
 });
 
-[variableSelect, scenarioSelect, opacityRange, smoothToggle].forEach((control) => {
+/* ---------- Eventos de UI ---------- */
+
+[variableSelect, scenarioSelect, monthSelect, opacityRange, smoothToggle].forEach((control) => {
   control.addEventListener('change', updateClimateLayer);
   control.addEventListener('input', updateClimateLayer);
 });
 
-document.querySelectorAll('input[name="month"]').forEach((radio) => {
-  radio.addEventListener('change', updateClimateLayer);
-});
-
-[adminToggle, regionesToggle, comunasToggle].forEach((control) => {
+[regionesToggle, comunasToggle].forEach((control) => {
   control.addEventListener('change', () => {
-    if (!adminToggle.checked) {
-      regionesToggle.checked = false;
-      comunasToggle.checked = false;
-    }
-    if (control !== adminToggle && (regionesToggle.checked || comunasToggle.checked)) {
-      adminToggle.checked = true;
-    }
+    adminToggle.checked = regionesToggle.checked || comunasToggle.checked;
     updateAdministrativeVisibility();
     reorderOperationalLayers();
   });
-});
-
-panelToggle.addEventListener('click', () => {
-  const isCollapsed = controlPanel.classList.toggle('is-collapsed');
-  panelToggle.setAttribute('aria-expanded', String(!isCollapsed));
 });
 
 map.whenReady(() => {
   map.fitBounds(INITIAL_VIEW.bounds);
   updateClimateLayer();
   loadAdministrativeLayers();
+  refreshToolbarState();
 });
