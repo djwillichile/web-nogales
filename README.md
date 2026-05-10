@@ -2,6 +2,8 @@
 
 Aplicación web interactiva de cartografía agroclimática para explorar variables climáticas y de aptitud de nogal en Chile centro-sur. La primera versión funciona como prototipo técnico con capas simuladas, límites administrativos mock y una estructura preparada para reemplazar los datos por GeoJSON oficiales, GeoTIFF optimizados, COG, WMS, WMTS o tiles XYZ.
 
+**Deploy público:** [https://djwillichile.github.io/web-nogales/](https://djwillichile.github.io/web-nogales/)
+
 ## Funcionalidades incluidas
 
 - Mapa Leaflet a pantalla completa centrado en Chile centro-sur.
@@ -60,14 +62,20 @@ http://localhost:8000
 
 ## Publicar en GitHub Pages
 
+El repositorio incluye el workflow `.github/workflows/deploy-pages.yml`, que despliega automáticamente el sitio estático en GitHub Pages cada vez que hay push o merge a `main`, `master` o `work`. También se puede disparar manualmente desde la pestaña **Actions** (`workflow_dispatch`).
+
+Para activarlo en GitHub:
+
 1. Subir los archivos a GitHub.
 2. Entrar al repositorio en GitHub.
 3. Ir a **Settings > Pages**.
 4. En **Build and deployment**, seleccionar:
-   - Source: `Deploy from a branch`.
-   - Branch: `main` o la rama de publicación.
-   - Folder: `/root`.
-5. Guardar y esperar la URL pública de GitHub Pages.
+   - Source: **GitHub Actions**.
+5. Guardar y esperar a que el workflow `Deploy static viewer to GitHub Pages` complete su ejecución en la pestaña **Actions**.
+
+La plataforma queda publicada en:
+
+[https://djwillichile.github.io/web-nogales/](https://djwillichile.github.io/web-nogales/)
 
 ## Datos mock y datos reales
 
