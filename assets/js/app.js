@@ -81,12 +81,14 @@ const LAYER_CATALOG = {
   },
 };
 
+const CONTINENTAL_BOUNDS = L.latLngBounds([-44.5, -76], [-29, -68]);
+
 const map = L.map('map', {
   zoomControl: true,
   minZoom: 5,
   maxZoom: 13,
-  maxBounds: [[-45, -78], [-30, -65]],
-  maxBoundsViscosity: 0.55,
+  maxBounds: CONTINENTAL_BOUNDS,
+  maxBoundsViscosity: 1,
 }).setView(INITIAL_VIEW.center, INITIAL_VIEW.zoom);
 
 const cartoVoyager = L.tileLayer(
@@ -95,6 +97,7 @@ const cartoVoyager = L.tileLayer(
     maxZoom: 19,
     subdomains: 'abcd',
     crossOrigin: true,
+    bounds: CONTINENTAL_BOUNDS,
     attribution:
       '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
   },
@@ -102,6 +105,7 @@ const cartoVoyager = L.tileLayer(
 
 const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 19,
+  bounds: CONTINENTAL_BOUNDS,
   attribution: '&copy; OpenStreetMap contributors',
 });
 
@@ -109,6 +113,7 @@ const esriTopo = L.tileLayer(
   'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
   {
     maxZoom: 19,
+    bounds: CONTINENTAL_BOUNDS,
     attribution: 'Tiles &copy; Esri, HERE, Garmin, FAO, NOAA, USGS, OpenStreetMap contributors',
   },
 );
