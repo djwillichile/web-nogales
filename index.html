@@ -96,6 +96,18 @@
 
       <input type="hidden" id="adminToggle" checked />
 
+      <div id="searchOverlay" class="search-overlay" hidden>
+        <input
+          id="searchInput"
+          class="search-input"
+          type="search"
+          placeholder="Buscar comuna, dirección o lugar…"
+          autocomplete="off"
+        />
+        <ul id="searchResults" class="search-results" role="listbox"></ul>
+        <p class="search-attribution">Búsqueda powered by OpenStreetMap Nominatim.</p>
+      </div>
+
       <section id="legend" class="legend-bar" aria-label="Leyenda de colores"></section>
     </main>
 
