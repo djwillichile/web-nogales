@@ -511,12 +511,7 @@ makeToolbarGroup([
     },
   },
   { id: 'gps', title: 'Ubicarme', icon: 'gps', onClick: () => map.locate({ setView: true, maxZoom: 10 }) },
-  {
-    id: 'search',
-    title: 'Buscar lugar (preparado)',
-    icon: 'search',
-    onClick: () => alert('Búsqueda geográfica preparada para geocoder futuro.'),
-  },
+  { id: 'search', title: 'Buscar lugar', icon: 'search', onClick: toggleSearchOverlay },
   { id: 'admin', title: 'Límites administrativos', icon: 'query', onClick: toggleAdminCard },
 ]);
 
@@ -570,6 +565,10 @@ cardStack.insertBefore(hideControlsBtn, cardStack.firstChild);
 function setControlsVisible(visible) {
   cardStack.hidden = !visible;
   legendEl.hidden = !visible;
+  if (!visible) {
+    const overlay = document.querySelector('#searchOverlay');
+    if (overlay) overlay.hidden = true;
+  }
   document
     .querySelectorAll('.leaflet-control-container .leaflet-top.leaflet-left, .leaflet-control-container .leaflet-bottom')
     .forEach((el) => {
@@ -580,6 +579,107 @@ function setControlsVisible(visible) {
 
 hideControlsBtn.addEventListener('click', () => setControlsVisible(false));
 collapseToggle.addEventListener('click', () => setControlsVisible(true));
+
+/* ---------- Búsqueda geográfica (Nominatim) ---------- */
+
+const searchOverlay = document.querySelector('#searchOverlay');
+const searchInput = document.querySelector('#searchInput');
+const searchResults = document.querySelector('#searchResults');
+
+const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search';
+const SEARCH_DEBOUNCE_MS = 400;
+let searchDebounceTimer = null;
+let searchAbortController = null;
+let searchMarker = null;
+
+function toggleSearchOverlay() {
+  const willShow = searchOverlay.hidden;
+  searchOverlay.hidden = !willShow;
+  toolButtons.get('search')?.classList.toggle('is-active', willShow);
+  if (willShow) {
+    searchInput.focus();
+    searchInput.select();
+  } else {
+    searchResults.innerHTML = '';
+  }
+}
+
+function renderSearchResults(items) {
+  if (!items.length) {
+    searchResults.innerHTML = '<li class="is-empty">Sin resultados</li>';
+    return;
+  }
+  searchResults.innerHTML = items
+    .map(
+      (item, idx) =>
+        `<li role="option" data-idx="${idx}" data-lat="${item.lat}" data-lon="${item.lon}">${escapeHtml(item.display_name)}</li>`,
+    )
+    .join('');
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+async function geocode(query) {
+  searchAbortController?.abort();
+  searchAbortController = new AbortController();
+
+  const params = new URLSearchParams({
+    format: 'json',
+    countrycodes: 'cl',
+    viewbox: `${CONTINENTAL_BOUNDS.getWest()},${CONTINENTAL_BOUNDS.getNorth()},${CONTINENTAL_BOUNDS.getEast()},${CONTINENTAL_BOUNDS.getSouth()}`,
+    bounded: '1',
+    limit: '5',
+    q: query,
+  });
+
+  const res = await fetch(`${NOMINATIM_URL}?${params}`, {
+    signal: searchAbortController.signal,
+    headers: { 'Accept-Language': 'es' },
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+searchInput.addEventListener('input', () => {
+  clearTimeout(searchDebounceTimer);
+  const query = searchInput.value.trim();
+  if (query.length < 3) {
+    searchResults.innerHTML = '';
+    return;
+  }
+  searchDebounceTimer = setTimeout(async () => {
+    try {
+      const items = await geocode(query);
+      renderSearchResults(items);
+    } catch (err) {
+      if (err.name === 'AbortError') return;
+      console.warn('Geocoder falló:', err);
+      searchResults.innerHTML = '<li class="is-empty">Error de búsqueda</li>';
+    }
+  }, SEARCH_DEBOUNCE_MS);
+});
+
+searchResults.addEventListener('click', (event) => {
+  const li = event.target.closest('li[data-lat]');
+  if (!li) return;
+  const lat = Number(li.dataset.lat);
+  const lon = Number(li.dataset.lon);
+  if (Number.isNaN(lat) || Number.isNaN(lon)) return;
+
+  if (searchMarker) map.removeLayer(searchMarker);
+  searchMarker = L.marker([lat, lon])
+    .bindPopup(`<strong>${li.textContent}</strong>`)
+    .addTo(map)
+    .openPopup();
+  map.setView([lat, lon], 11);
+  toggleSearchOverlay();
+});
+
+searchInput.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') toggleSearchOverlay();
+});
 
 /* ---------- Geolocalización ---------- */
 
