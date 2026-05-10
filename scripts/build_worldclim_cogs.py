@@ -41,6 +41,7 @@ VARIABLES = {
     "tmin": "tmin",
     "tmax": "tmax",
     "tavg": "tavg",
+    "bio": "bio",  # bioclimáticas anuales: 19 capas BIO1..BIO19
 }
 
 # Escenarios -> (kind, period_string).
@@ -57,6 +58,8 @@ BASELINE_ZIP_URL = "https://geodata.ucdavis.edu/climate/worldclim/2_1/base/wc2.1
 CMIP6_TIF_URL = (
     "https://geodata.ucdavis.edu/cmip6/2.5m/{gcm}/{ssp}/wc2.1_2.5m_{var}_{gcm}_{ssp}_{period}.tif"
 )
+# CMIP6 nombra el archivo bioclim como `bioc` (no `bio`).
+CMIP6_BIO_VAR = "bioc"
 
 COG_PROFILE = {
     "driver": "COG",
@@ -92,23 +95,26 @@ def download(url: str) -> bytes:
     return b"".join(chunks)
 
 
-def extract_baseline_tifs(zip_bytes: bytes, var: str) -> dict[int, bytes]:
-    """Devuelve {mes: bytes_tif} para los 12 meses dentro del zip de WorldClim baseline."""
+def extract_baseline_tifs(zip_bytes: bytes, var: str, expected_count: int = 12) -> dict[int, bytes]:
+    """Devuelve {índice: bytes_tif} para los archivos dentro del zip de WorldClim baseline.
+
+    Para variables mensuales (prec/tmin/tmax/tavg) son 12 (1..12).
+    Para bioclim son 19 (1..19, sin padding en el nombre original).
+    """
     out: dict[int, bytes] = {}
     with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
         for name in zf.namelist():
             if not name.endswith(".tif"):
                 continue
-            # WorldClim nombra: wc2.1_2.5m_prec_01.tif ... _12.tif
             stem = Path(name).stem
             try:
-                month = int(stem.split("_")[-1])
+                idx = int(stem.split("_")[-1])
             except ValueError:
                 continue
-            if 1 <= month <= 12:
-                out[month] = zf.read(name)
-    if len(out) != 12:
-        raise RuntimeError(f"Esperaba 12 meses para {var} baseline, obtuve {sorted(out)}")
+            if 1 <= idx <= expected_count:
+                out[idx] = zf.read(name)
+    if len(out) != expected_count:
+        raise RuntimeError(f"Esperaba {expected_count} archivos para {var} baseline, obtuve {sorted(out)}")
     return out
 
 
@@ -150,9 +156,10 @@ def build_baseline(variables: Iterable[str]) -> None:
         log(f"[baseline] {var}")
         url = BASELINE_ZIP_URL.format(var=var)
         zip_bytes = download(url)
-        monthly = extract_baseline_tifs(zip_bytes, var)
-        for month, tif in monthly.items():
-            dst = scenario_dir / f"{VARIABLES[var]}_{month:02d}.tif"
+        expected = 19 if var == "bio" else 12
+        items = extract_baseline_tifs(zip_bytes, var, expected_count=expected)
+        for idx, tif in items.items():
+            dst = scenario_dir / f"{VARIABLES[var]}_{idx:02d}.tif"
             log(f"    ⤷ {dst.relative_to(REPO_ROOT)}")
             crop_to_cog(tif, dst)
 
@@ -166,6 +173,17 @@ def build_future_var(var: str, scenario_key: str, period: str) -> None:
         dst = scenario_dir / f"{VARIABLES[var]}_{month:02d}.tif"
         log(f"    ⤷ {dst.relative_to(REPO_ROOT)}")
         crop_to_cog(tif_bytes, dst, band=month)
+
+
+def build_future_bio(scenario_key: str, period: str) -> None:
+    """Para CMIP6 bioclim, archivo es multibanda con 19 capas BIO1..BIO19."""
+    url = CMIP6_TIF_URL.format(gcm=GCM, ssp=SSP, var=CMIP6_BIO_VAR, period=period)
+    tif_bytes = download(url)
+    scenario_dir = COG_ROOT / scenario_key
+    for bio_idx in range(1, 20):
+        dst = scenario_dir / f"bio_{bio_idx:02d}.tif"
+        log(f"    ⤷ {dst.relative_to(REPO_ROOT)}")
+        crop_to_cog(tif_bytes, dst, band=bio_idx)
 
 
 def build_future_tavg(scenario_key: str, period: str) -> None:
@@ -213,6 +231,9 @@ def build_future(variables: Iterable[str], scenario_key: str, period: str) -> No
     for var in variables:
         if var == "tavg":
             build_future_tavg(scenario_key, period)
+        elif var == "bio":
+            log("  bio (19 capas)")
+            build_future_bio(scenario_key, period)
         else:
             log(f"  {var}")
             build_future_var(var, scenario_key, period)
