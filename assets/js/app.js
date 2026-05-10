@@ -89,6 +89,17 @@ const map = L.map('map', {
   maxBoundsViscosity: 0.55,
 }).setView(INITIAL_VIEW.center, INITIAL_VIEW.zoom);
 
+const cartoVoyager = L.tileLayer(
+  'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+  {
+    maxZoom: 19,
+    subdomains: 'abcd',
+    crossOrigin: true,
+    attribution:
+      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+  },
+);
+
 const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 19,
   attribution: '&copy; OpenStreetMap contributors',
@@ -102,8 +113,18 @@ const esriTopo = L.tileLayer(
   },
 );
 
-esriTopo.addTo(map);
-L.control.layers({ 'Esri World Topographic': esriTopo, OpenStreetMap: osm }, {}, { position: 'bottomleft' }).addTo(map);
+cartoVoyager.addTo(map);
+L.control
+  .layers(
+    {
+      'CARTO Voyager (rápido)': cartoVoyager,
+      OpenStreetMap: osm,
+      'Esri World Topographic': esriTopo,
+    },
+    {},
+    { position: 'bottomleft' },
+  )
+  .addTo(map);
 L.control.scale({ imperial: false, maxWidth: 300 }).addTo(map);
 
 let climateLayer = null;
