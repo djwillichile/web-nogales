@@ -17,7 +17,7 @@
     <link
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"
-     
+
       crossorigin="anonymous"
       referrerpolicy="no-referrer"
     />
@@ -27,19 +27,10 @@
     <main id="app-shell" aria-label="Visor agroclimático para nogal">
       <div id="map" role="application" aria-label="Mapa interactivo agroclimático"></div>
 
-      <header class="app-title" aria-label="Título de aplicación">
-        <span class="app-title__eyebrow">Nogal Chile</span>
-        <h1>Cartografía agroclimática</h1>
-      </header>
-
-      <aside id="control-panel" class="control-panel" aria-label="Panel de capas y variables">
-        <button id="panelToggle" class="panel-toggle" type="button" aria-expanded="true">
-          Controles
-        </button>
-
-        <div class="panel-content">
+      <aside class="card-stack" aria-label="Controles de capa">
+        <div class="card card--select">
           <label class="sr-only" for="variableSelect">Variable agroclimática</label>
-          <select id="variableSelect" class="compact-control">
+          <select id="variableSelect" class="card-select">
             <option value="precipitacion">Precipitación mensual</option>
             <option value="temp_min">Temperatura mínima media</option>
             <option value="temp_media">Temperatura media</option>
@@ -47,57 +38,65 @@
             <option value="aptitud_nogal">Aptitud de nogal</option>
             <option value="bioclimaticas">Variables bioclimáticas</option>
           </select>
+        </div>
 
+        <div class="card card--select">
           <label class="sr-only" for="scenarioSelect">Año o escenario climático</label>
-          <select id="scenarioSelect" class="compact-control">
+          <select id="scenarioSelect" class="card-select">
             <option value="baseline">Línea base</option>
             <option value="2030">2030</option>
             <option value="2050" selected>2050</option>
             <option value="2070">2070</option>
           </select>
+        </div>
 
-          <fieldset class="control-card months-card">
-            <legend class="sr-only">Mes</legend>
-            <label><input type="radio" name="month" value="0" /> Mes de enero</label>
-            <label><input type="radio" name="month" value="1" /> Mes de febrero</label>
-            <label><input type="radio" name="month" value="2" checked /> Mes de marzo</label>
-            <label><input type="radio" name="month" value="3" /> Mes de abril</label>
-            <label><input type="radio" name="month" value="4" /> Mes de mayo</label>
-            <label><input type="radio" name="month" value="5" /> Mes de junio</label>
-            <label><input type="radio" name="month" value="6" /> Mes de julio</label>
-            <label><input type="radio" name="month" value="7" /> Mes de agosto</label>
-            <label><input type="radio" name="month" value="8" /> Mes de septiembre</label>
-            <label><input type="radio" name="month" value="9" /> Mes de octubre</label>
-            <label><input type="radio" name="month" value="10" /> Mes de noviembre</label>
-            <label><input type="radio" name="month" value="11" /> Mes de diciembre</label>
-          </fieldset>
+        <div class="card card--select">
+          <label class="sr-only" for="monthSelect">Mes</label>
+          <select id="monthSelect" class="card-select">
+            <option value="0">Mes de enero</option>
+            <option value="1">Mes de febrero</option>
+            <option value="2" selected>Mes de marzo</option>
+            <option value="3">Mes de abril</option>
+            <option value="4">Mes de mayo</option>
+            <option value="5">Mes de junio</option>
+            <option value="6">Mes de julio</option>
+            <option value="7">Mes de agosto</option>
+            <option value="8">Mes de septiembre</option>
+            <option value="9">Mes de octubre</option>
+            <option value="10">Mes de noviembre</option>
+            <option value="11">Mes de diciembre</option>
+          </select>
+        </div>
 
-          <fieldset class="control-card">
-            <legend><input id="adminToggle" type="checkbox" checked /> Límites Administrativos</legend>
-            <label class="swatch-row">
-              <input id="regionesToggle" type="checkbox" checked />
-              <span class="line-swatch line-swatch--region" aria-hidden="true"></span>
-              Regiones
-            </label>
-            <label class="swatch-row">
-              <input id="comunasToggle" type="checkbox" checked />
-              <span class="line-swatch line-swatch--commune" aria-hidden="true"></span>
-              Comunas
-            </label>
-          </fieldset>
+        <div class="card card--opacity">
+          <label class="card-title" for="opacityRange">
+            Opacidad de la capa
+          </label>
+          <input id="opacityRange" type="range" min="20" max="90" value="64" />
+          <label class="card-checkbox">
+            <input id="smoothToggle" type="checkbox" checked />
+            Suavizar raster continuo
+          </label>
+        </div>
 
-          <fieldset class="control-card opacity-card">
-            <legend>Visualización</legend>
-            <label for="opacityRange">Opacidad raster: <output id="opacityValue">64%</output></label>
-            <input id="opacityRange" type="range" min="20" max="90" value="64" />
-            <label class="smooth-row">
-              <input id="smoothToggle" type="checkbox" checked /> Suavizar raster continuo
-            </label>
-          </fieldset>
+        <div id="adminCard" class="card card--admin" hidden>
+          <strong class="card-title">Límites Administrativos</strong>
+          <label class="swatch-row">
+            <input id="regionesToggle" type="checkbox" checked />
+            <span class="line-swatch line-swatch--region" aria-hidden="true"></span>
+            Regiones
+          </label>
+          <label class="swatch-row">
+            <input id="comunasToggle" type="checkbox" checked />
+            <span class="line-swatch line-swatch--commune" aria-hidden="true"></span>
+            Comunas
+          </label>
         </div>
       </aside>
 
-      <section id="legend" class="legend" aria-label="Leyenda de colores"></section>
+      <input type="hidden" id="adminToggle" checked />
+
+      <section id="legend" class="legend-bar" aria-label="Leyenda de colores"></section>
     </main>
 
     <script
@@ -107,7 +106,7 @@
     ></script>
     <script
       src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"
-     
+
       crossorigin="anonymous"
       referrerpolicy="no-referrer"
     ></script>
