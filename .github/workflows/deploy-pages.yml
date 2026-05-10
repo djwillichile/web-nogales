@@ -28,6 +28,28 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: 'scripts/requirements.txt'
+
+      - name: Cache generated COGs
+        id: cache-cogs
+        uses: actions/cache@v4
+        with:
+          path: assets/data/cogs
+          key: cogs-${{ hashFiles('scripts/build_worldclim_cogs.py') }}
+          restore-keys: |
+            cogs-
+
+      - name: Build COGs (skip on cache hit)
+        if: steps.cache-cogs.outputs.cache-hit != 'true'
+        run: |
+          pip install -r scripts/requirements.txt
+          python scripts/build_worldclim_cogs.py
+
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
 
