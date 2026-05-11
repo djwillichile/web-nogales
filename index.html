@@ -108,6 +108,22 @@
       </div>
 
       <section id="legend" class="legend-bar" aria-label="Leyenda de colores"></section>
+
+      <div id="climographModal" class="modal" hidden>
+        <div class="modal-backdrop" data-close></div>
+        <div class="modal-card" role="dialog" aria-labelledby="climographTitle" aria-modal="true">
+          <header class="modal-header">
+            <h2 id="climographTitle">Diagrama hombrotérmico</h2>
+            <button type="button" class="modal-close" aria-label="Cerrar" data-close>&times;</button>
+          </header>
+          <p id="climographSubtitle" class="modal-subtitle"></p>
+          <div id="climographStatus" class="modal-status">Cargando datos…</div>
+          <div class="modal-canvas-wrap">
+            <canvas id="climographCanvas" width="640" height="320"></canvas>
+          </div>
+          <p class="modal-footer-note">Walter-Lieth · WorldClim 2.1 / CMIP6 ACCESS-CM2 SSP245.</p>
+        </div>
+      </div>
     </main>
 
     <script
@@ -123,6 +139,7 @@
     ></script>
     <script src="https://unpkg.com/georaster@1.6.0/dist/georaster.browser.bundle.min.js"></script>
     <script src="https://unpkg.com/georaster-layer-for-leaflet@3.10.0/dist/georaster-layer-for-leaflet.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
     <script src="assets/js/app.js"></script>
   </body>
 </html>
